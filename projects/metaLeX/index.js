@@ -7,6 +7,14 @@ const CONFIG = {
         factory: '0x51413048f3dfc4516e95bc8e249341b1d53b6cb2',
         fromBlock: 22469387,
     },
+    /**
+     * Base has additional active factories, some of which are mixed production and testing usage
+     * They are intentionally excluded pending confirmation from MetaLeX on which corps are non-production
+     * 0xe73ea052c2891ce1668742142a6634df09c88512
+     * 0xd426752b63bcb990c70c1b1662fabdba8d65487f
+     * 0xba0077b7045b12d62d5f13feeefc957bc169bb7c
+     * 0x8ee1695cbc727379a8a0c8c9aefb910c26d35880
+     */
     base: {
         factory: '0x51413048f3dfc4516e95bc8e249341b1d53b6cb2',
         fromBlock: 30144156,
@@ -48,9 +56,9 @@ async function tvl(api) {
     });
 
     // Collect all escrow instances (deal managers and round managers) from corp deployments and round manager events
-    const historicalDealManagers = new Set();
+    const dealManagers = new Set();
     corpLogs.forEach(({ dealManager }) => {
-        if (dealManager && dealManager !== NULL_ADDRESSES.zero) historicalDealManagers.add(dealManager);
+        if (dealManager && dealManager !== NULL_ADDRESSES.zero) dealManagers.add(dealManager);
     });
 
     const roundManagerLogs = await getLogs({
@@ -63,17 +71,18 @@ async function tvl(api) {
         toBlock,
     });
 
-    const historicalRoundManagers = new Set();
+    const roundManagers = new Set();
     roundManagerLogs.forEach(({ roundManager }) => {
-        if (roundManager && roundManager !== NULL_ADDRESSES.zero) historicalRoundManagers.add(roundManager);
+        if (roundManager && roundManager !== NULL_ADDRESSES.zero) roundManagers.add(roundManager);
     });
 
     // CyberCorp does not emit manager-change events.
     // If MetaLeX later migrates corp manager assignments, we can use block-bounded getter checks.
+    
     const paymentTokensByEscrowAddress = new Map();
 
     // Collect payment token addresses from all known deal managers by parsing DealProposed events.
-    await Promise.all([...historicalDealManagers].map(async (dealManager) => {
+    await Promise.all([...dealManagers].map(async (dealManager) => {
         const deals = await getLogs({
             api,
             target: dealManager,
@@ -93,7 +102,7 @@ async function tvl(api) {
     }));
 
     // Collect round payment tokens by finding rounds with EOIs, then reading each round's paymentToken.
-    await Promise.all([...historicalRoundManagers].map(async (roundManager) => {
+    await Promise.all([...roundManagers].map(async (roundManager) => {
         const eois = await getLogs({
             api,
             target: roundManager,
